@@ -1,0 +1,23 @@
+{
+  "name": "claudia-bridge",
+  "version": "1.0.0",
+  "description": "HTTP bridge between Vapi voice assistant (Claudia) and Clawdis AI assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "vapi",
+    "voice",
+    "ai",
+    "assistant",
+    "bridge",
+    "clawdis"
+  ],
+  "author": "Alejandro Maza",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

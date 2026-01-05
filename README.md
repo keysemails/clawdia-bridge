@@ -1,23 +1,21 @@
 # Claudia Bridge
 
-HTTP bridge that allows **Claudia** (a Vapi voice assistant) to communicate with **Clawdius** (an AI assistant running on Clawdis).
+HTTP bridge that connects **Clawdia** (Vapi voice assistant) to **Clawdius** (AI assistant running on Clawdis).
 
-## What is this?
-
-When you call Claudia on the phone, she can ask Clawdius questions on your behalf. This bridge handles that communication.
+## How It Works
 
 ```
 You (phone call)
     ↓
-Claudia (Vapi voice AI)
-    ↓ function call: ask_clawdius
-Claudia Bridge (this service)
-    ↓ forwards question
-Clawdius
-    ↓ processes & responds
+Clawdia (Vapi voice AI)
+    ↓ POST /ask (tool call)
 Claudia Bridge
-    ↓ returns answer
-Claudia
+    ↓ WebSocket to Gateway
+Clawdius (processes request)
+    ↓ returns response
+Claudia Bridge
+    ↓ returns to Vapi
+Clawdia
     ↓ speaks response
 You
 ```
@@ -29,9 +27,8 @@ You
 git clone https://github.com/alejandroOPI/claudia-bridge.git
 cd claudia-bridge
 
-# Set environment variables
-export BRIDGE_PORT=3847
-export BRIDGE_TOKEN=your-secret-token
+# Install dependencies
+npm install
 
 # Run
 npm start
@@ -42,45 +39,50 @@ npm start
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BRIDGE_PORT` | `3847` | Port to listen on |
-| `BRIDGE_TOKEN` | `claudia-secret-token` | Bearer token for authentication |
-| `CLAWDIUS_WEBHOOK` | `null` | Optional webhook URL to notify Clawdius |
+| `GATEWAY_URL` | `ws://127.0.0.1:18789` | Clawdis Gateway WebSocket URL |
 
 ## API Endpoints
 
 ### POST /ask
 
-Claudia calls this endpoint to ask Clawdius a question.
+Clawdia calls this endpoint to ask Clawdius a question.
 
-**Headers:**
-```
-Authorization: Bearer your-secret-token
-Content-Type: application/json
-```
-
-**Request:**
+**Vapi Tool Call Format:**
 ```json
 {
-  "question": "What's on my calendar today?",
-  "context": "User is Alejandro, calling from phone"
+  "message": {
+    "toolCalls": [{
+      "id": "tool-call-id",
+      "function": {
+        "name": "ask_clawdius",
+        "arguments": "{\"question\": \"What time is it?\"}"
+      }
+    }]
+  }
 }
 ```
 
 **Response:**
 ```json
 {
-  "answer": "You have 3 meetings today...",
-  "timestamp": "2026-01-04T15:30:00Z"
+  "results": [{
+    "toolCallId": "tool-call-id",
+    "result": "It's 6pm Mexico City time."
+  }]
 }
 ```
 
-### POST /respond/:requestId
-
-Clawdius calls this endpoint to respond to a pending question.
-
-**Request:**
+**Direct Call Format (for testing):**
 ```json
 {
-  "answer": "You have 3 meetings: standup at 10am, lunch at 1pm, review at 4pm."
+  "question": "What time is it?"
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "It's 6pm Mexico City time."
 }
 ```
 
@@ -88,108 +90,103 @@ Clawdius calls this endpoint to respond to a pending question.
 
 Health check endpoint.
 
-**Response:**
 ```json
 {
   "status": "ok",
-  "service": "claudia-bridge",
-  "pendingRequests": 0,
-  "timestamp": "2026-01-04T15:30:00Z"
+  "mode": "gateway-ws"
 }
 ```
 
-### GET /pending
+## Vapi Configuration
 
-List pending requests (for debugging).
+### 1. Create Assistant "Clawdia"
 
-## Exposing to the Internet
+In the Vapi dashboard, create an assistant with:
+- **Name:** Clawdia
+- **Voice:** Female voice (e.g., Lily from Vapi)
+- **Model:** Claude or GPT
+- **System Prompt:**
+```
+Eres Clawdia, la asistente de voz de Alejandro. Eres amable, directa y eficiente.
 
-The bridge needs to be accessible from the internet for Vapi to call it.
-
-### Option 1: Tailscale Funnel (Recommended)
-
-```bash
-# Start the server
-npm start
-
-# In another terminal, expose via Tailscale
-tailscale funnel 3847
+REGLAS:
+- Hablas español principalmente
+- Se breve en tus respuestas - esto es una llamada telefónica
+- Si necesitas información (calendario, emails, clima, etc), usa ask_clawdius
+- Clawdius es otro asistente que tiene acceso a toda la información de Alejandro
 ```
 
-Your URL will be: `https://your-machine.tail[xxx].ts.net/`
+### 2. Add Tool
 
-### Option 2: ngrok
-
-```bash
-npm start
-ngrok http 3847
-```
-
-### Option 3: Deploy to Cloud
-
-Deploy to Railway, Render, Fly.io, etc.
-
-## Configuring Vapi
-
-Add this tool to your Claudia assistant in the Vapi dashboard:
+Add this tool to the assistant:
 
 ```json
 {
   "type": "function",
   "function": {
     "name": "ask_clawdius",
-    "description": "Ask Clawdius for information or to perform an action. Use this when you need to check calendar, emails, weather, or any information that Clawdius has access to.",
+    "description": "Pregunta a Clawdius por información o para ejecutar una acción.",
     "parameters": {
       "type": "object",
       "properties": {
         "question": {
           "type": "string",
-          "description": "The question or request for Clawdius"
+          "description": "La pregunta o solicitud para Clawdius"
         }
       },
       "required": ["question"]
     }
   },
   "server": {
-    "url": "https://your-server.com/ask",
-    "headers": {
-      "Authorization": "Bearer your-secret-token"
-    }
+    "url": "https://your-server.com/ask"
   }
 }
 ```
 
-## How the Flow Works
+### 3. Assign Phone Number
 
-1. You call Claudia's phone number
-2. You ask: "What's on my calendar today?"
-3. Claudia recognizes she needs to ask Clawdius
-4. Claudia calls `POST /ask` with your question
-5. The bridge creates a pending request and logs it
-6. Clawdius sees the pending request and processes it
-7. Clawdius calls `POST /respond/:id` with the answer
-8. The bridge returns the answer to Claudia
-9. Claudia speaks the answer to you
+Assign a Vapi phone number to the Clawdia assistant.
 
-## Integration with Clawdis
+## Exposing to Internet
 
-The bridge logs all questions with `CLAWDIUS_QUESTION` level. Configure your Clawdis instance to:
-
-1. Watch the bridge logs, or
-2. Receive webhook notifications (set `CLAWDIUS_WEBHOOK`), or
-3. Poll `GET /pending` for new questions
-
-## Development
+### Tailscale Funnel (Recommended)
 
 ```bash
-# Run with auto-reload
-npm run dev
+npm start
+tailscale funnel 3847
+```
 
-# Test locally
+Your URL: `https://your-machine.tailXXXX.ts.net/`
+
+### ngrok
+
+```bash
+npm start
+ngrok http 3847
+```
+
+## Architecture
+
+The bridge connects to the Clawdis Gateway via WebSocket and uses the `agent` method to process requests. This means:
+
+1. Questions go through the same pipeline as WhatsApp/Telegram messages
+2. Clawdius has access to all skills (calendar, email, weather, etc.)
+3. Responses are generated by the same AI that handles other channels
+
+### Why WebSocket?
+
+- **Direct connection** - No polling, no intermediate services
+- **Full access** - Same capabilities as other messaging channels
+- **Fast** - Sub-second latency for most responses
+
+## Testing
+
+```bash
+# Health check
 curl http://localhost:3847/health
 
+# Direct question
 curl -X POST http://localhost:3847/ask \
-  -H "Authorization: Bearer your-secret-token" \
   -H "Content-Type: application/json" \
   -d '{"question": "What time is it?"}'
 ```

@@ -1,5 +1,5 @@
 {
-  "name": "claudia-bridge",
+  "name": "clawdia-bridge",
   "version": "1.0.0",
   "description": "HTTP bridge between Vapi voice assistant (Clawdia) and Clawdis Gateway",
   "main": "server.js",

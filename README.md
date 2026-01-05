@@ -1,4 +1,4 @@
-# Claudia Bridge
+# Clawdia Bridge
 
 HTTP bridge that connects **Clawdia** (Vapi voice assistant) to **Clawdius** (AI assistant running on Clawdis).
 
@@ -9,11 +9,11 @@ You (phone call)
     ↓
 Clawdia (Vapi voice AI)
     ↓ POST /ask (tool call)
-Claudia Bridge
+Clawdia Bridge
     ↓ WebSocket to Gateway
 Clawdius (processes request)
     ↓ returns response
-Claudia Bridge
+Clawdia Bridge
     ↓ returns to Vapi
 Clawdia
     ↓ speaks response
@@ -24,8 +24,8 @@ You
 
 ```bash
 # Clone
-git clone https://github.com/alejandroOPI/claudia-bridge.git
-cd claudia-bridge
+git clone https://github.com/alejandroOPI/clawdia-bridge.git
+cd clawdia-bridge
 
 # Install dependencies
 npm install
